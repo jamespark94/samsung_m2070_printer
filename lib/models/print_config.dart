@@ -3,6 +3,12 @@ enum HalftoneMode {
   dithering,
 }
 
+enum DarkThemeInvertMode {
+  auto,   // 어두운 배경 자동 감지 후 반전 (기본값)
+  always, // 항상 반전
+  off,    // 원본 유지
+}
+
 enum ConnectionProtocol {
   ipp, // http://192.168.0.1:631/printers/ipTIME_Printer (CUPS/IPP - Default for ipTIME)
   rawTcp, // RAW TCP 9100
@@ -16,6 +22,7 @@ class PrintConfig {
   final int copies;
   final int resolutionDpi;
   final HalftoneMode halftoneMode;
+  final DarkThemeInvertMode darkThemeInvertMode;
   final String paperSize;
 
   const PrintConfig({
@@ -26,6 +33,7 @@ class PrintConfig {
     this.copies = 1,
     this.resolutionDpi = 600,
     this.halftoneMode = HalftoneMode.dithering,
+    this.darkThemeInvertMode = DarkThemeInvertMode.auto,
     this.paperSize = 'A4',
   });
 
@@ -45,6 +53,7 @@ class PrintConfig {
     int? copies,
     int? resolutionDpi,
     HalftoneMode? halftoneMode,
+    DarkThemeInvertMode? darkThemeInvertMode,
     String? paperSize,
   }) {
     return PrintConfig(
@@ -55,6 +64,7 @@ class PrintConfig {
       copies: copies ?? this.copies,
       resolutionDpi: resolutionDpi ?? this.resolutionDpi,
       halftoneMode: halftoneMode ?? this.halftoneMode,
+      darkThemeInvertMode: darkThemeInvertMode ?? this.darkThemeInvertMode,
       paperSize: paperSize ?? this.paperSize,
     );
   }

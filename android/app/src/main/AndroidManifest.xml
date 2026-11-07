@@ -41,6 +41,21 @@
                 <data android:mimeType="application/pdf" />
             </intent-filter>
         </activity>
+
+        <!-- Android System PrintService 등록 -->
+        <service
+            android:name=".M2070PrintService"
+            android:label="Samsung M2070 Direct Print"
+            android:permission="android.permission.BIND_PRINT_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.printservice.PrintService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.printservice"
+                android:resource="@xml/printservice" />
+        </service>
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />

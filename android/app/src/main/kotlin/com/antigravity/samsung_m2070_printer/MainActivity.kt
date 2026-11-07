@@ -20,23 +20,8 @@ import java.util.concurrent.Executors
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.antigravity/samsung_m2070"
     private var pendingSharedPdfPath: String? = null
+    private var methodChannel: MethodChannel? = null
     private val executor = Executors.newSingleThreadExecutor()
-
-    companion object {
-        init {
-            System.loadLibrary("spl_encoder")
-        }
-    }
-
-    // Native C++ functions implemented in native_bridge.cpp
-    private external fun nativeGetJobStartHeader(jobName: String): ByteArray
-    private external fun nativeGetJobEndFooter(): ByteArray
-    private external fun nativeEncodeBitmapPage(
-        bitmap: Bitmap,
-        copies: Int,
-        resolutionDpi: Int,
-        useDithering: Boolean
-    ): ByteArray?
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,6 +50,7 @@ class MainActivity : FlutterActivity() {
             val localPath = copyUriToInternalStorage(uri)
             if (localPath != null) {
                 pendingSharedPdfPath = localPath
+                methodChannel?.invokeMethod("onSharedPdfReceived", localPath)
             }
         }
     }
@@ -87,7 +73,9 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+        val channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+        methodChannel = channel
+        channel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "getInitialPdfPath" -> {
                     val path = pendingSharedPdfPath
@@ -106,7 +94,8 @@ class MainActivity : FlutterActivity() {
                             val file = File(filePath)
                             val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
                             val renderer = PdfRenderer(pfd)
-                            val count = renderer.pageCount
+                            val slices = PdfLayoutHelper.buildVirtualPageList(renderer)
+                            val count = slices.size
                             renderer.close()
                             pfd.close()
                             runOnUiThread { result.success(count) }
@@ -119,8 +108,9 @@ class MainActivity : FlutterActivity() {
                 "renderPagePreview" -> {
                     val filePath = call.argument<String>("filePath")
                     val pageIndex = call.argument<Int>("pageIndex") ?: 0
-                    val targetWidth = call.argument<Int>("width") ?: 595
-                    val targetHeight = call.argument<Int>("height") ?: 842
+                    val targetWidth = call.argument<Int>("width") ?: 1190
+                    val targetHeight = call.argument<Int>("height") ?: 1684
+                    val darkThemeMode = call.argument<String>("darkThemeMode") ?: "auto"
 
                     if (filePath == null) {
                         result.error("INVALID_ARGS", "filePath is required", null)
@@ -132,15 +122,27 @@ class MainActivity : FlutterActivity() {
                             val file = File(filePath)
                             val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
                             val renderer = PdfRenderer(pfd)
-                            val page = renderer.openPage(pageIndex)
+                            val slices = PdfLayoutHelper.buildVirtualPageList(renderer)
 
-                            val bitmap = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
-                            val canvas = Canvas(bitmap)
-                            canvas.drawColor(Color.WHITE)
-                            page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                            page.close()
+                            val slice = if (pageIndex in slices.indices) slices[pageIndex] else slices.firstOrNull()
+                            if (slice == null) {
+                                renderer.close()
+                                pfd.close()
+                                runOnUiThread { result.error("INVALID_PAGE", "No pages found", null) }
+                                return@execute
+                            }
+
+                            val bitmap = PdfLayoutHelper.renderVirtualPage(
+                                renderer,
+                                slice,
+                                targetWidth,
+                                targetHeight,
+                                forPrint = false
+                            )
                             renderer.close()
                             pfd.close()
+
+                            PdfLayoutHelper.applySmartDarkThemeInversion(bitmap, darkThemeMode)
 
                             val stream = ByteArrayOutputStream()
                             bitmap.compress(Bitmap.CompressFormat.PNG, 90, stream)
@@ -158,7 +160,7 @@ class MainActivity : FlutterActivity() {
                     val jobName = call.argument<String>("jobName") ?: "Document.pdf"
                     executor.execute {
                         try {
-                            val bytes = nativeGetJobStartHeader(jobName)
+                            val bytes = SplNativeBridge.nativeGetJobStartHeader(jobName)
                             runOnUiThread { result.success(bytes) }
                         } catch (e: Exception) {
                             runOnUiThread { result.error("ENCODE_ERROR", e.message, null) }
@@ -169,7 +171,7 @@ class MainActivity : FlutterActivity() {
                 "getJobEndFooter" -> {
                     executor.execute {
                         try {
-                            val bytes = nativeGetJobEndFooter()
+                            val bytes = SplNativeBridge.nativeGetJobEndFooter()
                             runOnUiThread { result.success(bytes) }
                         } catch (e: Exception) {
                             runOnUiThread { result.error("ENCODE_ERROR", e.message, null) }
@@ -183,6 +185,7 @@ class MainActivity : FlutterActivity() {
                     val copies = call.argument<Int>("copies") ?: 1
                     val resolutionDpi = call.argument<Int>("resolutionDpi") ?: 600
                     val useDithering = call.argument<Boolean>("useDithering") ?: true
+                    val darkThemeMode = call.argument<String>("darkThemeMode") ?: "auto"
 
                     if (filePath == null) {
                         result.error("INVALID_ARGS", "filePath is required", null)
@@ -198,18 +201,30 @@ class MainActivity : FlutterActivity() {
                             val file = File(filePath)
                             val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
                             val renderer = PdfRenderer(pfd)
-                            val page = renderer.openPage(pageIndex)
+                            val slices = PdfLayoutHelper.buildVirtualPageList(renderer)
 
-                            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-                            val canvas = Canvas(bitmap)
-                            canvas.drawColor(Color.WHITE)
-                            page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
-                            page.close()
+                            val slice = if (pageIndex in slices.indices) slices[pageIndex] else slices.firstOrNull()
+                            if (slice == null) {
+                                renderer.close()
+                                pfd.close()
+                                runOnUiThread { result.error("INVALID_PAGE", "No pages found", null) }
+                                return@execute
+                            }
+
+                            val bitmap = PdfLayoutHelper.renderVirtualPage(
+                                renderer,
+                                slice,
+                                width,
+                                height,
+                                forPrint = true
+                            )
                             renderer.close()
                             pfd.close()
 
+                            PdfLayoutHelper.applySmartDarkThemeInversion(bitmap, darkThemeMode)
+
                             // Native JBIG1 + QPDL encoding
-                            val encodedBytes = nativeEncodeBitmapPage(bitmap, copies, resolutionDpi, useDithering)
+                            val encodedBytes = SplNativeBridge.nativeEncodeBitmapPage(bitmap, copies, resolutionDpi, useDithering)
                             bitmap.recycle()
 
                             if (encodedBytes != null) {

@@ -185,6 +185,36 @@ class ConfigPanel extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                const Text("다크 테마 반전 (토너 절약): "),
+                const SizedBox(width: 8),
+                ChoiceChip(
+                  label: const Text("자동 감지"),
+                  selected: config.darkThemeInvertMode == DarkThemeInvertMode.auto,
+                  onSelected: isPrinting ? null : (_) {
+                    onChanged(config.copyWith(darkThemeInvertMode: DarkThemeInvertMode.auto));
+                  },
+                ),
+                const SizedBox(width: 8),
+                ChoiceChip(
+                  label: const Text("항상 반전"),
+                  selected: config.darkThemeInvertMode == DarkThemeInvertMode.always,
+                  onSelected: isPrinting ? null : (_) {
+                    onChanged(config.copyWith(darkThemeInvertMode: DarkThemeInvertMode.always));
+                  },
+                ),
+                const SizedBox(width: 8),
+                ChoiceChip(
+                  label: const Text("끄기"),
+                  selected: config.darkThemeInvertMode == DarkThemeInvertMode.off,
+                  onSelected: isPrinting ? null : (_) {
+                    onChanged(config.copyWith(darkThemeInvertMode: DarkThemeInvertMode.off));
+                  },
+                ),
+              ],
+            ),
           ],
         ),
       ),

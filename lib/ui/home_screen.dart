@@ -41,6 +41,11 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _loadSavedConfig();
     _checkInitialIntentPdf();
+    NativePrintService.setSharedPdfListener((sharedPath) {
+      if (File(sharedPath).existsSync()) {
+        _loadPdf(sharedPath);
+      }
+    });
   }
 
   Future<void> _loadSavedConfig() async {
@@ -124,7 +129,11 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_pdfFilePath == null) return;
     setState(() => _isPreviewLoading = true);
     try {
-      final bytes = await NativePrintService.renderPagePreview(_pdfFilePath!, pageIndex);
+      final bytes = await NativePrintService.renderPagePreview(
+        _pdfFilePath!,
+        pageIndex,
+        darkThemeMode: _config.darkThemeInvertMode.name,
+      );
       setState(() {
         _previewPageIndex = pageIndex;
         _previewImageBytes = bytes;
@@ -182,6 +191,7 @@ class _HomeScreenState extends State<HomeScreen> {
           copies: _config.copies,
           resolutionDpi: _config.resolutionDpi,
           useDithering: _config.halftoneMode == HalftoneMode.dithering,
+          darkThemeMode: _config.darkThemeInvertMode.name,
         );
 
         packetsToSend.add(pagePacket);
@@ -313,7 +323,13 @@ class _HomeScreenState extends State<HomeScreen> {
             ConfigPanel(
               config: _config,
               isPrinting: _isPrinting,
-              onChanged: (newConfig) => setState(() => _config = newConfig),
+              onChanged: (newConfig) {
+                final oldDark = _config.darkThemeInvertMode;
+                setState(() => _config = newConfig);
+                if (oldDark != newConfig.darkThemeInvertMode && _pdfFilePath != null && _totalPages > 0) {
+                  _loadPreviewPage(_previewPageIndex);
+                }
+              },
             ),
             const SizedBox(height: 12),
 

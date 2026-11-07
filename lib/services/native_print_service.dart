@@ -14,6 +14,15 @@ class NativePrintService {
     }
   }
 
+  static void setSharedPdfListener(void Function(String path) onPdfReceived) {
+    _channel.setMethodCallHandler((call) async {
+      if (call.method == 'onSharedPdfReceived' && call.arguments is String) {
+        final path = call.arguments as String;
+        onPdfReceived(path);
+      }
+    });
+  }
+
   static Future<int> getPdfPageCount(String filePath) async {
     try {
       final int count = await _channel.invokeMethod<int>('getPdfPageCount', {'filePath': filePath}) ?? 0;
@@ -24,13 +33,20 @@ class NativePrintService {
     }
   }
 
-  static Future<Uint8List> renderPagePreview(String filePath, int pageIndex, {int width = 595, int height = 842}) async {
+  static Future<Uint8List> renderPagePreview(
+    String filePath,
+    int pageIndex, {
+    int width = 1190,
+    int height = 1684,
+    String darkThemeMode = 'auto',
+  }) async {
     try {
       final Uint8List? bytes = await _channel.invokeMethod<Uint8List>('renderPagePreview', {
         'filePath': filePath,
         'pageIndex': pageIndex,
         'width': width,
         'height': height,
+        'darkThemeMode': darkThemeMode,
       });
       return bytes ?? Uint8List(0);
     } on PlatformException catch (e) {
@@ -67,6 +83,7 @@ class NativePrintService {
     required int copies,
     required int resolutionDpi,
     required bool useDithering,
+    String darkThemeMode = 'auto',
   }) async {
     try {
       final Uint8List? bytes = await _channel.invokeMethod<Uint8List>('renderAndEncodePage', {
@@ -75,6 +92,7 @@ class NativePrintService {
         'copies': copies,
         'resolutionDpi': resolutionDpi,
         'useDithering': useDithering,
+        'darkThemeMode': darkThemeMode,
       });
       return bytes ?? Uint8List(0);
     } on PlatformException catch (e) {

@@ -11,7 +11,7 @@
 extern "C" {
 
 JNIEXPORT jbyteArray JNICALL
-Java_com_antigravity_samsung_1m2070_1printer_MainActivity_nativeGetJobStartHeader(
+Java_com_antigravity_samsung_1m2070_1printer_SplNativeBridge_nativeGetJobStartHeader(
         JNIEnv* env, jobject /* this */, jstring jobName) {
     const char* cJobName = env->GetStringUTFChars(jobName, nullptr);
     std::string strJobName = cJobName ? cJobName : "Document.pdf";
@@ -24,7 +24,7 @@ Java_com_antigravity_samsung_1m2070_1printer_MainActivity_nativeGetJobStartHeade
 }
 
 JNIEXPORT jbyteArray JNICALL
-Java_com_antigravity_samsung_1m2070_1printer_MainActivity_nativeGetJobEndFooter(
+Java_com_antigravity_samsung_1m2070_1printer_SplNativeBridge_nativeGetJobEndFooter(
         JNIEnv* env, jobject /* this */) {
     std::vector<uint8_t> bytes = QpdlEncoder::createJobEndFooter();
     jbyteArray result = env->NewByteArray(static_cast<jsize>(bytes.size()));
@@ -33,7 +33,7 @@ Java_com_antigravity_samsung_1m2070_1printer_MainActivity_nativeGetJobEndFooter(
 }
 
 JNIEXPORT jbyteArray JNICALL
-Java_com_antigravity_samsung_1m2070_1printer_MainActivity_nativeEncodeBitmapPage(
+Java_com_antigravity_samsung_1m2070_1printer_SplNativeBridge_nativeEncodeBitmapPage(
         JNIEnv* env, jobject /* this */, jobject bitmap, jint copies, jint resolutionDpi, jboolean useDithering) {
     
     AndroidBitmapInfo info;
